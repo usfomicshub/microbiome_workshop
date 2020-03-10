@@ -2,7 +2,7 @@
 
 These folders contain all presentations, data, tutorials and code we provided during our second Microbiome Data-Analysis Workshop (offered March 2020).
 
-## Files *will be updated*
+## Files *(will be updated)*
   * [Presentations]()
     * Presentations are organized by day and topic.
   * Pipeline/Tutorials*
