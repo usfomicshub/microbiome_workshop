@@ -9,7 +9,7 @@ These folders contain all presentations, data, tutorials and code we provided du
     * [Day 2: Running dada2](https://github.com/usfomicshub/usfomicshub.github.io/tree/master/Microbiome_Workshop_Materials/microbiome_workshop_demos/day2)
       * **Goal**: The purpose of this analysis is to obtain an Amplicon Sequence Variant (ASV) table for all of our microbiome-sample example-data.
     * [Day 3, PartI: Data-visualization](https://github.com/usfomicshub/usfomicshub.github.io/tree/master/Microbiome_Workshop_Materials/microbiome_workshop_demos/day3)
-    * [Day 3, PartII: Extrapolating functional information]((https://github.com/usfomicshub/microbiome_workshop/R)
+    * [Day 3, PartII: Extrapolating functional information](https://github.com/usfomicshub/microbiome_workshop/R)
         * using phylogenetics (picrust2 + ALDEx2)
         * machine learning-approaches
 
