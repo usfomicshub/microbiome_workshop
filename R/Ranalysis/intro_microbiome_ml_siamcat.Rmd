@@ -1,0 +1,154 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+Increasingly, microbiome researchers are looking at ways to use machine learning in order to filter through OTUs and associate them with phenotypic metadata. Doing that while also accounting for the metadata covariates is a complicated task.
+
+One recent approach, SIAMCAT, blackboxes much of the machine learning and streamlines the interface so that you mostly have to deal with interpreting the somewhat complex output figures (in my opinion).
+
+This is a condensed version of the SIAMCAT vignette.
+
+https://bioconductor.org/packages/release/bioc/vignettes/SIAMCAT/inst/doc/SIAMCAT_vignette.html
+
+We will use the example dataset that is part of the SIAMCAT package itself.
+
+# initial loading of data
+
+Fundamentally, SIAMCAT needs two datasets.
+
+1) an OTU table (converted to relative abundance)
+2) a table of metadata to associate the OTUs with
+
+A label is created for the main outcome variable in the metadata, and the rest are used as covariates in the downstream models.
+
+```{r}
+library(SIAMCAT)
+
+data("feat_crc_zeller", package="SIAMCAT")
+data("meta_crc_zeller", package="SIAMCAT") 
+#2 objects in memory now, feat.crc.zeller and meta.crc.zeller
+
+#create label, Case is the affected category (Control is the baseline)
+label.crc.zeller <- create.label(meta=meta.crc.zeller,
+    label='Group', case='CRC')
+
+
+```
+
+# create siamcat object
+
+Here we load SIAMCAT using the simplest case where each of the inputs are dataframes. Another standard approach would be to convert phyloseq objects, which have the otu/metadata integrated into one object. See the second vignette about inputs for the full breadth of options.
+
+https://bioconductor.org/packages/release/bioc/vignettes/SIAMCAT/inst/doc/SIAMCAT_read-in.html
+
+# siamcat object
+
+The basic logic to siamcat is that after you create the initial siamcat, you then add downstream results to the original object. They are placed in separate S6 slots, you can retrieve the original data as well as the downstream results.
+
+```{r}
+siamcat <- siamcat(feat=feat.crc.zeller,
+    label=label.crc.zeller,
+    meta=meta.crc.zeller)
+
+#do some quick filtering to remove low-abundance OTUs
+
+siamcat <- filter.features(siamcat,
+    filter.method = 'abundance',
+    cutoff = 0.001)
+
+```
+
+# Check associations between OTUs and metadata
+
+This plot shows the association between the outcome variable and OTUs.
+
+
+
+
+```{r}
+#start with some data normalization
+# log normalize the OTUs
+
+siamcat <- normalize.features(
+    siamcat,
+    norm.method = "log.unit",
+    norm.param = list(
+        log.n0 = 1e-06,
+        n.p = 2,
+        norm.margin = 1
+    )
+)
+
+
+#split the data into training and testing partitions
+#the train dataset is used for training/tuning the model
+#how well it predicts it used by comparing it with the test splits
+
+siamcat <-  create.data.split(
+    siamcat,
+    num.folds = 5,
+    num.resample = 2
+)
+
+```
+
+# model training
+
+SIAMCAT provides a simplified interface to machine learning, as compared to caret/scikit-learn where you have more control over the options but also need to know more about the hyper-parameters, etc.
+
+Here, you mostly just select one of a few popular methods, that have various methods of feature selection.
+
+The full list of models is:
+    method = c("lasso", "enet", "ridge", "lasso_ll",
+        "ridge_ll", "randomForest")
+
+```{r}
+#train model
+siamcat <- train.model(
+    siamcat,
+    method = "lasso"
+)
+
+#make predictions
+siamcat <- make.predictions(siamcat)
+pred_matrix <- pred_matrix(siamcat)
+
+
+```
+
+# Model evaluation
+
+There are two final plots.
+The evaluate.predictions() tells us how well the method performed using ROC curves (Charley can explain maybe?)
+
+```{r}
+#plot the predictions as an ROC curve
+siamcat <-  evaluate.predictions(siamcat)
+model.evaluation.plot(siamcat)
+
+```
+
+# Model interpretation
+
+The most complex plot output is the interpretation plot, there's just a lot of data to associate.
+
+There are 4 basic panels. 
+
+1) feature weight (which OTUs are most predictive)
+2) heatmap of the scores for the top features across samples
+3) boxplot of the variation in performance across cross-validation samples
+4) the distribution of the metadata across samples
+
+
+```{r}
+
+model.interpretation.plot(
+    siamcat,
+    fn.plot = 'interpretation.pdf',
+    consens.thres = 0.5,
+    limits = c(-3, 3),
+    heatmap.type = 'zscore',
+)
