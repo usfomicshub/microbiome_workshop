@@ -24,7 +24,7 @@ Fundamentally, SIAMCAT needs two datasets.
 
 A label is created for the main outcome variable in the metadata, and the rest are used as covariates in the downstream models.
 
-```{r}
+```{r,message=FALSE,warning=FALSE}
 library(SIAMCAT)
 
 data("feat_crc_zeller", package="SIAMCAT")
@@ -93,6 +93,16 @@ siamcat <-  create.data.split(
     num.resample = 2
 )
 
+#plot the model
+siamcat <- check.associations(
+    siamcat,
+    sort.by = 'fc',
+    alpha = 0.05,
+    mult.corr = "fdr",
+    detect.lim = 10 ^-6,
+    plot.type = "quantile.box",
+    panels = c("fc", "prevalence", "auroc"))
+
 ```
 
 # model training
@@ -145,10 +155,16 @@ There are 4 basic panels.
 
 ```{r}
 
+#if you want to print out to a pdf, use
+#fn.plot as an option
+#eg fn.plot="interpretation.pdf"
+#actually, this is so big I think we need to print to a pdf
+
 model.interpretation.plot(
     siamcat,
-    fn.plot = 'interpretation.pdf',
     consens.thres = 0.5,
     limits = c(-3, 3),
     heatmap.type = 'zscore',
+    prompt=FALSE,
+    fn.plot="siamcat_interpret.pdf"
 )
