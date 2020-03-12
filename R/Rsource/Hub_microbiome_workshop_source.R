@@ -8,9 +8,9 @@ if (length(setdiff(packages, rownames(installed.packages()))) > 0) {
 }
 
 # install our primary analysis-packages from bioconductor if they aren't already installed
-bioconductor.packages <- c("dada2", "microbiome", "phyloseq", "ALDEx2")
+bioconductor.packages <- c("dada2", "microbiome", "phyloseq", "ALDEx2","SIAMCAT")
 if (length(setdiff(bioconductor.packages, rownames(installed.packages()))) > 0){
-  BiocManager::install(c("dada2", "microbiome", "phyloseq", "ALDEx2"),
+  BiocManager::install(c("dada2", "microbiome", "phyloseq", "ALDEx2","SIAMCAT"),
                        ask = FALSE,
                        quiet = TRUE,
                        verbose = FALSE)
@@ -42,3 +42,4 @@ library(gcookbook)
 library(ALDEx2)
 library(readr)
 library(dplyr)
+library(SIAMCAT)
