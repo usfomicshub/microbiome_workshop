@@ -2,7 +2,23 @@
 # Author: J. Oberstaller
 
 # install necessary general packages/dependencies if they aren't already installed (combining AS, JG, JO, and TEK package-requirements)
-packages <- c("BiocManager","knitr", "caTools", "ggpubr", "dplyr", "RColorBrewer", "reshape2", "ggplot2","hrbrthemes","gcookbook","RCurl","fs", "readr")
+packages <- c("BiocManager",
+              "knitr",
+              "caTools",
+              "ggpubr",
+              "dplyr",
+              "RColorBrewer",
+              "reshape2",
+              "ggplot2",
+              "hrbrthemes",
+              "gcookbook",
+              "RCurl",
+              "fs",
+              "readr",
+              "GUniFrac",
+              "simEd",
+              "tictoc"
+             )
 if (length(setdiff(packages, rownames(installed.packages()))) > 0) {
   install.packages(setdiff(packages, rownames(installed.packages())),repos='https://cloud.r-project.org') 
 }
@@ -25,6 +41,9 @@ library(dada2)
 library(RCurl)
 library(fs)
 library(dplyr)
+library(GUniFrac)
+library(simEd)
+library(tictoc)
 
 # load required packages (JG)
 library(microbiome)
