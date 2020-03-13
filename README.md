@@ -1,6 +1,11 @@
+# *UPDATE 3/13/2020: The Hub Microbiome Data-Analysis Workshop has been postponed in accordance with USF's coronavirus control-measures. We will announce new dates when possible.*
+
+<br>
+<br>
+
 # Hub Microbiome Data-Analysis Workshop materials
 
-These folders contain all presentations, data, tutorials and code we provided during our second Microbiome Data-Analysis Workshop (offered March 2020).
+These folders contain all presentations, data, tutorials and code to be provided during our second Microbiome Data-Analysis Workshop (offered March 2020).
 
 ## Files *(will be updated)*
   * [Presentations]()
@@ -15,7 +20,7 @@ These folders contain all presentations, data, tutorials and code we provided du
 
 ## Notes
 
-### Using the tutorials:
+### Using the tutorials *(will be updated)*:
 
   * The tutorials are provided in R-Markdown format (file-extension .Rmd). They can be run interactively in R-studio (after setting up a Project in the specified directory we had you download for the hands-on portion of the workshop, as we did in class).
   * The [day2 directory](https://github.com/usfomicshub/usfomicshub.github.io/tree/master/Microbiome_Workshop_Materials/microbiome_workshop_demos/day2) contains all necessary practice-data and code (including automated installation of required R-packages) to complete the day2 tutorial.
