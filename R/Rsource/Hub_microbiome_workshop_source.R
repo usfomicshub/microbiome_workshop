@@ -17,14 +17,15 @@ packages <- c("BiocManager",
               "readr",
               "GUniFrac",
               "simEd",
-              "tictoc"
+              "tictoc",
+              "vegan"
              )
 if (length(setdiff(packages, rownames(installed.packages()))) > 0) {
   install.packages(setdiff(packages, rownames(installed.packages())),repos='https://cloud.r-project.org') 
 }
 
 # install our primary analysis-packages from bioconductor if they aren't already installed
-bioconductor.packages <- c("dada2", "microbiome", "phyloseq", "ALDEx2","SIAMCAT")
+bioconductor.packages <- c("dada2", "microbiome", "phyloseq", "ALDEx2","SIAMCAT","metagenomeSeq")
 if (length(setdiff(bioconductor.packages, rownames(installed.packages()))) > 0){
   BiocManager::install(c("dada2", "microbiome", "phyloseq", "ALDEx2","SIAMCAT"),
                        ask = FALSE,
