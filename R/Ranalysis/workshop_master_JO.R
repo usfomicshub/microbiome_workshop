@@ -8,7 +8,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo=TRUE)
-source(here::here("Rsource/microbiome.source.scripts.TEK-JO_110619.R"))
+source(here::here("Rsource/Hub_microbiome_workshop_source.R"))
 ```
 
 # Pipeline-overview #
@@ -44,14 +44,21 @@ demo_microbiome_fasqfiles <- here::here("Rdata/fastq")
 ```
 
 ```{r load}
-# Let's load the appropriate R package (dada2) for the analysis. It should have automatically been installed when you ran this markdown.
+# Let's load the appropriate R packages (dada2 and a few others) for the analysis. All packages should have automatically been installed when you ran this markdown.
 library(dada2)
+library(GUniFrac)
+library(simEd)
+library(tictoc)
 ```
 
-*Important:* make sure to note the package-version of dada2 you're using!
+*Important:* make sure to note the package-version of each package you're using!
 ```{r version-check}
 packageVersion("dada2")
+packageVersion("GUniFrac")
+packageVersion("simEd")
+packageVersion("tictoc")
 ```
+
 
 ```{r separate_fastq_files}
 # Check that the fastq directory contains all our fastq files
@@ -63,6 +70,11 @@ demo_R <- sort(list.files(demo_microbiome_fasqfiles, pattern="_R2_001.fastq", fu
 demo_samplenames <- sapply(strsplit(basename(demo_F), "_"), '[', 1)
 ```
 
+```{r set_seed}
+# In order to make the results reproducible when carried out multiple times, we use the set.seed function.
+## JO NOTE: add aside about how to look up what functions do in R (should be review from CW's intro-to-R)
+set.seed(56456)
+```
 
 ## Evaluating data-quality ##
 
@@ -100,6 +112,8 @@ First we will specify the path and name the output-files to which the good seque
 ```{r filter_bad_reads1}
 # The first step here is to specify the path and name the output-files to which the good sequences will be written. 
   # the directory and output-files we specify here will be created in the next step (filterAndTrim).
+
+## JO NOTE: remove references to the "here" package; instead begin tutorial with how to set up a project in RStudio
 demo_goodF <- file.path(here::here("Routput/demo_good_filtered"), paste0(demo_samplenames, "F_good.fastq.gz"))
 demo_goodR <- file.path(here::here("Routput/demo_good_filtered"), paste0(demo_samplenames, "R_good.fastq.gz"))
 names(demo_goodF) <- demo_samplenames
