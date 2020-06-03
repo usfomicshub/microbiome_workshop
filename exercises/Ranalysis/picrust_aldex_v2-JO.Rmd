@@ -1,0 +1,284 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+# Introduction for analyzing Picrust2 in a statistical framework
+
+Basics of this are sort of light in the official Aldex tutorial, which frames in the more general RNAseq/whatever. Which, according to their philosphy, should work the same way. 
+
+Basically, the Aldex way says that everything counts should be scaled relative (even rnaseq), and then you can use some abundance methods they developed to do comparative testing. 
+
+The fast and easy ways are essentially t-tests for 2 factor designs, etc.
+
+The full on, fully modeled way is using a glm, which is apparently quite slow, but lets the variable tested be multivariate. It tests in a one-against-all fashion if I remember correctly (link to docs)
+
+The code to confirm the logic of hooking up the picrust2 outputs (and which) to the aldex come from
+
+https://github.com/gavinmdouglas/picrust2_manuscript/blob/master/scripts/analyses/hmp2/hmp2_aldex2_disease_state_and_enriched.R
+
+take the normalized pathway abundance file (seqtab_norm.tsv?)
+
+
+
+to run:
+
+```{bash,eval=FALSE}
+source activate picrust2
+# JO: most people will need to use "conda activate picrust2"
+
+#the default output uses less memory, but outputs in a long format
+#we would have to spread the data to get it back to wide (like an otu table)
+#time picrust2_pipeline.py -s seqs.fna -i table.biom -o picrust_ex -p 10 --per_sequence_contrib --stratified --coverage
+
+#add --wide-table so you don't have to spread from the data
+time picrust2_pipeline.py -s seqs.fna -i table.biom -o picrust_ex -p 10 --per_sequence_contrib --stratified --coverage --wide_table
+```
+Note! the stratified tables, which are what we want, will increase the run time and outputfile size considerably (since they are the full ASV matrices)
+
+
+https://github.com/chrismitbiz/metagenomepredictionanalysis/blob/master/16smetagenomepredanalysis.Rmd
+
+
+see here to get to the RDS used later on by the picrust2 MS
+https://github.com/gavinmdouglas/picrust2_manuscript/blob/4f6eaf92333d2f4e3982501f41eaa2f900f91d28/scripts/analyses/hmp2/hmp2_prep_input.R
+
+also:
+
+https://rpubs.com/chrisLaTrobe/Picrust_PCA_KEGG
+
+though the aldex code results are elided
+
+# preprocessing data for aldex
+
+The main things to do are to drop out the pathway/sequence columns, merge them into rownames. You only need to do this with the stratified data (which splits out the effect of pathway X otu).
+
+Unstratified looks at a whole-pathway level, so is more summarised.
+
+General note, I prefer using readr to read in data, but we need to convert all the data from tibbles to dataframes to properly use the rownames. They have a habit of getting dropped if the tibble is modified.
+
+```{r preproc}
+library(ALDEx2)
+library(readr)
+library(dplyr)
+#wide file?
+#this is taken from the prep_input code
+df=read_tsv("../Rdata/picrust_ex/pathways_out/path_abun_strat.tsv")
+dfs=as.data.frame(df)
+rownames(dfs)=paste(df$pathway,df$sequence,sep="|")
+dfs=dfs[,-which(colnames(dfs) %in% c("pathway","sequence"))]
+dfout=as.data.frame(df)
+
+dfus=read_tsv("../Rdata/picrust_ex/pathways_out/path_abun_unstrat.tsv")
+dfus=as.data.frame(dfus)
+rownames(dfus)=dfus$pathway
+dfus=dfus[,-which(colnames(dfus)=="pathway")]
+
+#nothing in the pathway, look in the kegg?
+
+dfk=read_tsv("../Rdata/picrust_ex/KO_metagenome_out/pred_metagenome_unstrat.tsv")
+dfk=as.data.frame(dfk)
+rownames(dfk)=dfk$`function`
+dfk=dfk[,-which(colnames(dfk)=="function")]
+
+
+rownames(dfout)=paste(dfout$pathway,dfout$sequence,sep="|")
+dfout=dfout[,-which(colnames(dfout) %in% c("pathway","sequence"))]
+df_tmp= df[, -which(colnames(df) == "sequence")]
+df_abun=aggregate(.~pathway,data=df_tmp,FUN=sum)
+rownames(df_abun)=df_abun$pathway
+df_abun=df_abun[,-which(colnames(df_abun)=="pathway")]
+#convert to relative abundance
+df_rabun=data.frame(sweep(df_abun,2,colSums(df_abun),"/"),check.names=F)
+# asin transformation
+asinT=function(x) asin(sqrt(x))
+df_rabun2=df_rabun %>% mutate_all(asinT)
+
+#finally, round them so they
+df_rrabun=round(df_rabun)
+
+
+
+
+```
+
+# exploratory analyses with phyloseq/pca
+
+Before we go into the real-deal modeling, lets quickly check if the kegg/pathways cluster by strain or facility. We get to see the null results in real time. 
+  ## JO: more explanation about why this is the first thing to check
+
+The picrust2 notes that the example data is "greatly simplified" for the picrust2 demo, presumably mainly on the amount of metadata.
+
+The preprint for the paper states what we will shortly show. https://peerj.com/articles/5494/
+
+A lot of this code is directly from
+https://rpubs.com/chrisLaTrobe/Picrust_PCA_KEGG
+
+Thanks Chris LaTrobe!
+
+```{r pca}
+library(phyloseq)
+library(microbiome)
+
+mdata=read_tsv("../Rdata/metadata.tsv")
+kotu=otu_table(dfk,taxa_are_rows=TRUE)
+md=as.data.frame(mdata)
+rownames(md)=mdata$SampleID
+md=md[,-which(colnames(md)=="SampleID")]
+md=sample_data(md)
+kegg=phyloseq(kotu,md)
+pwo=otu_table(dfout,taxa_are_rows=TRUE)
+pw=phyloseq(pwo,md)
+
+#kegg is the kegg table
+#pw is the pathway table (much higher level)
+
+
+pw_clr=microbiome::transform(pw,"clr")
+kegg_clr=microbiome::transform(kegg,"clr")
+
+
+```
+
+# basic ordination of kegg/pathway data
+
+Ordination / dimension reduction is basically the same as when done with regular phyloseq and "regular" OTU tables. Only thing different is that you aren't working with a taxa table.
+
+```{r ord}
+#rda is one of many ordination methods
+ord_pw=phyloseq::ordinate(pw_clr,"RDA")
+ord_kegg=phyloseq::ordinate(kegg_clr,"RDA")
+
+#get the top eigenvalues of the first few PC axes
+head(ord_pw$CA$eig)
+#transform to percent
+sapply(ord_pw$CA$eig[1:8], function(x) x / sum(ord_pw$CA$eig))
+sapply(ord_kegg$CA$eig[1:8], function(x) x / sum(ord_kegg$CA$eig))
+#ok, so most variation is in the first 2 axes for pathway
+# 3-4 axes for kegg
+
+p=plot_ordination(pw,ord_pw,type="samples",color="Facility",shape="Genotype")
+p=p+geom_polygon(aes(fill=Genotype))
+#much larger separation by Facility, genotype seems to overlap
+
+
+
+
+```
+
+# fancy-pants statistical modeling with Aldex2
+
+Aldex2 provides a way to model compositional (count) data, using a Welch test or Kruskal-Wallis for simple comparisons (two types), and a full blown general linear model *(glm)* for multiple variables at the same time (though I ran into issues getting the effect-size and plotting). 
+
+The other key thing to note is that picrust2 outputs fractional counts, so some rounding needs to be done or most of these programs will break.
+
+If you have continuous metadata, you can use the aldex.corr function. For categorical data, use aldex
+
+The aldex function performs 3 steps:
+
+    1. some MC to get a sense of the Dirichlet distribution and then convert using a center-log transform.
+    2. aldex.ttest (or aldex.kw, aldex.glm) to test for differences.
+    3. aldex.effect to get effect sizes for the rows
+
+In the first plots, you'll see nothing is significant (no red dots).
+
+When we redo the plots by Facility, lots of things are significant. Looking back at the paper, there's an inherent Facility/Strain batch-effect that isn't possible to unravel (all samples of a strain (KO and WT) were sequenced at the same facility).
+
+A reminder that its probably worth it to talk to someone about your design before you actually sequence/do the experiment.
+
+```{r aldex}
+
+
+conds=mdata$Genotype
+#kegg
+x.kf=aldex(round(dfk),conds,effects=T,denom="all")
+#unstratified pathway
+x.pwu=aldex(round(dfus),conds,effects=TRUE,denom="all")
+#stratified pathway
+x.pws=aldex(round(dfs),conds,effects=TRUE)
+#x.all=aldex(round(dfs),conds,effects=TRUE)
+#x.all <- aldex(selex.sub,conds,mc.samples=16,test="t",effect=TRUE,include.samples.summary=FALSE,demon="all",verbose=FALSE)
+
+par(mfrow=(c(3,2)))
+aldex.plot(x.kf,type="MA",test="welch",xlab="Log-ratio abundance",
+           ylab="Difference")
+aldex.plot(x.kf,type="MW",test="welch",xlab="Dispersion",
+           ylab="Difference")
+
+aldex.plot(x.pwu,type="MA",test="welch",xlab="Log-ratio abundance",
+           ylab="Difference")
+aldex.plot(x.pwu,type="MW",test="welch",xlab="Dispersion",
+           ylab="Difference")
+
+
+aldex.plot(x.pwu,type="MA",test="welch",xlab="Log-ratio abundance",
+           ylab="Difference")
+aldex.plot(x.pwu,type="MW",test="welch",xlab="Dispersion",
+           ylab="Difference")
+#nothing is significant
+
+#redo with conds=facility
+conds=mdata$Facility
+x.kf=aldex(round(dfk),conds,effects=T)
+x.pwu=aldex(round(dfus),conds,effects=T)
+x.pws=aldex(round(dfs),conds,effects=T)
+
+par(mfrow=(c(3,2)))
+aldex.plot(x.kf,type="MA",test="welch",xlab="Log-ratio abundance",
+           ylab="Difference")
+aldex.plot(x.kf,type="MW",test="welch",xlab="Dispersion",
+           ylab="Difference")
+
+aldex.plot(x.pwu,type="MA",test="welch",xlab="Log-ratio abundance",
+           ylab="Difference")
+aldex.plot(x.pwu,type="MW",test="welch",xlab="Dispersion",
+           ylab="Difference")
+
+
+aldex.plot(x.pwu,type="MA",test="welch",xlab="Log-ratio abundance",
+           ylab="Difference")
+aldex.plot(x.pwu,type="MW",test="welch",xlab="Dispersion",
+           ylab="Difference")
+
+
+
+
+```
+
+
+# glm model for multivariate (not quite working)
+
+Here is the general framework for doing analyses with a glm. Note that it takes much longer than the other tests, (<1 minute for 2 variable vs 10+ minutes for glm).
+
+Also, the output doesn't properly work with the aldex.plot and aldex.effect
+
+To build the markdown I prevented the following chunk from running
+
+digging in a little more, could probably do the plotting etc using the data from summary(x) (the result from the aldex.clr call)
+
+Left column has standard MA-style plots, right column is an MW plot, which is the difference between to variance within
+
+```{r glm,eval=FALSE}
+dm=model.matrix(~Genotype+Facility,mdata)
+#can do complex models with multiple terms with glm
+#it is SLOWWWWW
+#for this smallish dataset, it took 10+ minutes
+x=aldex.clr(round(dfk),dm,denom="all")
+
+NOT RUN, aldex.glm
+#x.glm=aldex.glm(x,dm)
+#x.eff=aldex.effect(x)
+
+#par(mfrow=(c(1,2)))
+#plot(x.glm[,"model.GenotypeWT Pr(>|t|).BH"], x.all$we.eBH, log="xy",xlab="glm model Genotype", ylab="Welch's t-test")
+#plot(glm.test[,"model.FacilityPaloAlto Pr(>|t|).BH"], x.all$we.eBH, log="xy",xlab="glm model Facility", ylab="Welch's t-test")
+```
+
+
+
+
+
+
+
