@@ -32,9 +32,6 @@ We recommend you keep your analyses organized by project (just as we organized t
   - **Ranalysis**: this folder contains any scripts we create to analyze our data, like this R-Markdown (.Rmd) document.
   - **Routput**: we will direct any output data-files from our analyses to this folder.
   - **Rfigs**: we will direct any figures we generate from our analyses to this folder.
-  - **Rsource**: this folder contains any R source-scripts we create to set up our environment for our analyses--custom functions, which packages to load, etc. etc. You don't need to worry about this one since we made it for you.
-  
-      You can think of these as set-up scripts--just load it at the beginning of your session and forget about it.
   
 
 ## Begin analyses ##
@@ -332,7 +329,7 @@ write.table(demo_track_steps,
 We will next determine taxa present in our samples using the Silva database v.132.
 
 
-dada2 helpfully maintains specially formatted databases for 3 of the most popular 16S microbiome-databases: Silva, Greengenes, and RDP (also UNITE for ITS).
+dada2 helpfully maintains specially formatted databases for three of the most popular 16S microbiome-databases: Silva, Greengenes, and RDP (also UNITE for ITS).
 
 We will be using the [dada2 Silva database](https://zenodo.org/record/1172783#.XcClW9VOnb1)
 
