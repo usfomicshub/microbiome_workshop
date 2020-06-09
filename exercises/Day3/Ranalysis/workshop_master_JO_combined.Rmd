@@ -1,0 +1,1211 @@
+---
+title: "USF Omics Hub Microbiome Data-Analysis Workshop: hands-on exercises"
+authors: "J. Oberstaller, A. Sarkar, J. Gibbons, T.E. Keller, S. Rakesh, C. Wang"
+guinea-pigs: "J. Donglasan, S. Jahangiri, J. Dahrendorff"
+date: "6/03/2020"
+output: html_document
+---
+### First step will be to create a new project in RStudio, then open this markdown there. We'll include a walkthrough. ###
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE)
+
+```
+# USF Omics Hub Microbiome Workshop Day 2: Generating ASV tables from microbiome-sample sequencing data #
+
+# Pipeline-overview #
+
+*Goal*: The purpose of this analysis is to obtain an Amplicon Sequence Variant (ASV) table for all of our microbiome-sample example-data.
+
+*Input data*: We will start with demultiplexed fastq files for all samples. *This analysis is for paired-end data.* Thus, for each sample, there will be two files, named according to Illumina platform conventions:
+
+  1. Forward-reads, named *_R1_001.fastq
+  2. Reverse-reads, named *_R2_001.fastq
+
+## Before we begin ##
+Before we begin, let's take a moment to get organized. The importance of documentation and good record-keeping are *essential* to producing high-quality and reproducible computational analyses, just as they are at the bench! 
+
+We recommend you keep your analyses organized by project (just as we organized this example). Looking around: 
+    
+  - **Rdata**: this folder contains our input .fastq.gz files and our input database of 16S-sequences that we'll use to identify taxa present in our samples.
+
+  - **Ranalysis**: this folder contains any scripts we create to analyze our data, like this R-Markdown (.Rmd) document.
+  - **Routput**: we will direct any output data-files from our analyses to this folder.
+  - **Rfigs**: we will direct any figures we generate from our analyses to this folder.
+
+## Begin analyses ##
+
+Now back to RStudio.
+
+```{r load, include=TRUE, echo=FALSE, warning=FALSE}
+# Let's load the appropriate R packages (dada2 and a few others) for the analysis. All packages are already installed.
+library(dada2)
+library(GUniFrac)
+library(simEd)
+library(tictoc)
+```
+
+*Important:* make sure to note the package-version of each package you're using!
+```{r version-check}
+packageVersion("dada2")
+packageVersion("GUniFrac")
+packageVersion("simEd")
+packageVersion("tictoc")
+```
+
+Next we will load our input-data into R:
+```{r}
+# Let's give the path to the directory where all the fastq files are stored a name ("demo_microbiome_fasqfiles").
+demo_microbiome_fasqfiles <- "Rdata/fastq"
+```
+
+```{r separate_fastq_files}
+# Check that the fastq directory contains all our fastq files
+list.files(demo_microbiome_fasqfiles)
+# Now make two variables to separate and store the forward and the reverse reads
+demo_F <- sort(list.files(demo_microbiome_fasqfiles,
+                          pattern="_R1_001.fastq",
+                          full.names = TRUE))
+demo_R <- sort(list.files(demo_microbiome_fasqfiles,
+                          pattern="_R2_001.fastq",
+                          full.names = TRUE))
+# Extract filenames of all samples for future steps in the analysis
+demo_samplenames <- sapply(strsplit(basename(demo_F),
+                                    "_"),
+                           '[', 1)
+```
+
+## JO NOTE: We'll be moving at a fast pace and you'll be encountering lots of new functions. Remember you can type ?function_name() into the console at any time to get an explanation for what any function does and available options/parameters. The information will be dense, but helpful!
+
+
+## Evaluating data-quality ##
+
+Let's check our data-quality by making plots and viewing them directly in RStudio. Your plots will appear in the RStudio "Plots" pane to the lower-right.
+
+```{r check_fastq_quality}
+# First we'll check the forward-reads:
+plotQualityProfile(demo_F[1:4],
+                   n=1e+06)
+# Now let's plot to check the data-quality of our reverse-reads.
+plotQualityProfile(demo_R[1:4],
+                   n=1e+06)
+```
+
+Let's also output the plots as .pdf files so we can view them later. They'll be saved in the Rfigs directory.
+  *Helpful tip: It is important to save any data or figures you generate in R that you want to keep to file; they are not saved when you quit RStudio, and you'll have to regenerate them!*
+  
+```{r make_quality_pdfs, include=TRUE, echo=FALSE, warning=FALSE}
+## save data-quality plot for forward-reads:
+pdf("Rfigs/demo_F_quality.pdf",
+    width = 12,
+    height = 8,
+    pointsize = 8)
+plotQualityProfile(demo_F[1:4],
+                   n=1e+06)
+dev.off()
+# save the data-quality plot for our reverse-reads:
+pdf("Rfigs/demo_R_quality.pdf",
+    width = 12,
+    height = 8,
+    pointsize = 8)
+plotQualityProfile(demo_R[1:4],
+                   n=1e+06)
+dev.off()
+```
+
+## Filter reads based on data-quality ##
+
+The next step is to filter the sequences appropriately, the parameters for which will depend on the data. 
+
+Conceptually, we will discard the bad reads, trim the ends of the good reads, and then save the trimmed good reads to a new directory.
+
+First we will specify the path and name the output-files to which the good sequences will be written. 
+  **the directory and output-files we specify here will be created in the next step (filterAndTrim).**
+```{r filter_bad_reads1}
+# The first step here is to specify the path and name the output-files to which the good sequences will be written. 
+  # the directory and output-files we specify here will be created in the next step (filterAndTrim).
+
+## JO NOTE: remove references to the "here" package; instead begin tutorial with how to set up a project in RStudio
+demo_goodF <- file.path("Routput/demo_good_filtered",
+                        paste0(demo_samplenames,
+                               "F_good.fastq.gz"))
+demo_goodR <- file.path("Routput/demo_good_filtered",
+                        paste0(demo_samplenames,
+                               "R_good.fastq.gz"))
+names(demo_goodF) <- demo_samplenames
+names(demo_goodR) <- demo_samplenames
+```
+
+
+Now we perform the very important step of filtering and trimming each fastq. 
+
+*These parameters are flexible and should depend on your data!*
+
+```{r filter_bad_reads2}
+demo_good_proper <- filterAndTrim(demo_F,
+                                  demo_goodF,
+                                  demo_R,
+                                  demo_goodR,
+                                  trimLeft = c(17, 21),
+                                  truncLen = c(145, 135),
+                                  maxN = 0,
+                                  truncQ = 2,
+                                  minQ=1,
+                                  maxEE = c(2, 4),
+                                  rm.phix = TRUE,
+                                  n = 1e+5,
+                                  compress = TRUE,
+                                  verbose = TRUE)
+# save the output of previous step (a summary table indicating how many reads there were for each sample before and after quality-filtering):
+write.table(demo_good_proper,
+            file = "Routput/demo_filteredout.txt",
+            sep = "\t",
+            quote = FALSE)
+```
+
+
+
+
+## Dereplicate sequences in each sample ##
+
+Dereplicating the data collapses together reads that encode the same sequence this ends up saving computational time in later stages. (see section 4 https://bioconductor.org/packages/devel/bioc/vignettes/dada2/inst/doc/dada2-intro.html)
+```{r dereplicate}
+# The next step is to dereplicate the sequences in each sample
+derep_demo_F <- derepFastq(demo_goodF,
+                           n = 1e+06,
+                           verbose = TRUE)
+derep_demo_R <- derepFastq(demo_goodR,
+                           n = 1e+06,
+                           verbose = TRUE)
+names(derep_demo_F) <- demo_samplenames
+names(derep_demo_R) <- demo_samplenames
+```
+
+
+## Calculate and plot error-rates ##
+
+Now let's calculate the error-rates (see below) for the forward and reverse sequences, plot them directly in RStudio and save to .pdf.
+
+[see section 5 ]
+(https://bioconductor.org/packages/devel/bioc/vignettes/dada2/inst/doc/dada2-intro.html)
+From the dada2 vignette:
+
+" The dada algorithm uses a parametric model of the errors introduced by PCR amplification and sequencing. Those error parameters typically vary between sequencing runs and PCR protocols, so our method provides a way to estimate those parameters from the data itself."
+
+```{r set_seed}
+# In order to make the results reproducible when carried out multiple times, we use the set.seed function.
+
+set.seed(56456)
+```
+
+```{r error_calc}
+## forward-reads:
+demo_error_F <- learnErrors(derep_demo_F,
+                            nbases = 1e+07,
+                            randomize = TRUE,
+                            MAX_CONSIST = 12,
+                            multithread = TRUE,
+                            verbose = TRUE)
+plotErrors(demo_error_F,
+           obs = TRUE,
+           nominalQ = TRUE)
+## and reverse-reads:
+demo_error_R <- learnErrors(derep_demo_R,
+                            nbases = 1e+07,
+                            randomize = TRUE,
+                            MAX_CONSIST = 12,
+                            multithread = TRUE,
+                            verbose = TRUE)
+plotErrors(demo_error_R, obs = TRUE,
+           nominalQ = TRUE)
+```
+
+We'll also save both plots to .pdf in our Rfigs directory for our records:
+```{r error_plots, include=TRUE, echo=FALSE, warning=FALSE}
+pdf("Rfigs/demo_error_F_plot.pdf",
+    width = 10,
+    height = 10,
+    pointsize = 8)
+plotErrors(demo_error_F,
+           obs = TRUE,
+           nominalQ = TRUE)
+dev.off()
+pdf("Rfigs/demo_error_R_plot.pdf",
+    width = 10,
+    height = 10,
+    pointsize = 8)
+plotErrors(demo_error_R,
+           obs = TRUE,
+           nominalQ = TRUE)
+dev.off()
+```
+
+
+## Running dada2: Calculating ASVs ##
+
+Now it is time to run the actual dada2 algorithm to determine the ASVs in the dataset.
+
+  ** This step is run separately for forward and reverse sets of paired-end reads **
+
+```{r running_dada2}
+demo_dada_F <- dada(derep_demo_F,
+                    err=demo_error_F,
+                    pool = TRUE,
+                    multithread = TRUE)
+demo_dada_R <- dada(derep_demo_R,
+                    err=demo_error_R,
+                    pool = TRUE,
+                    multithread = TRUE)
+# Let's see how many sequence variants we have got in the forward set
+demo_dada_F[[1]]
+```
+
+
+Next we will merge the forward and reverse sets (the paired-end reads for all our samples), and output a sequence-table of all ASVs.
+
+```{r mergePairs}
+demo_merged <- mergePairs(demo_dada_F,
+                          derep_demo_F,
+                          demo_dada_R,
+                          derep_demo_R,
+                          minOverlap = 20,
+                          maxMismatch = 0,
+                          verbose = TRUE)
+# Let's make a sequence table of all the ASVs
+demo_sequence_table <- makeSequenceTable(demo_merged,
+                                         orderBy = "abundance")
+# We can check the distribution of the ASVs by length
+table(nchar(getSequences(demo_sequence_table)))
+```
+
+## Filtering chimeric sequences ##
+
+```{r}
+# Remove chimeric sequences
+demo_nochim <- removeBimeraDenovo(demo_sequence_table,
+                                  method = "consensus",
+                                  minFoldParentOverAbundance = 1,
+                                  verbose = TRUE,
+                                  multithread = TRUE)
+# Let's see how many ASVs remain after filtering chimeric sequences:
+dim(demo_nochim)
+# Let's see the proportion of sequences we retained after filtering for chimeric sequences:
+sum(demo_nochim)/sum(demo_sequence_table)
+```
+
+Now we have completed all the filtering, trimming, cleanup etc. to arrive at our final data-set. Here we should check and record how many sequences we retained after each step.
+  
+  ** This test is important for trouble-shooting purposes. **
+
+```{r}  
+# Create a function to calculate reads retained
+fetch_numbers <- function(a) sum(getUniques(a))
+# Then apply this function to the output of each step in our pipeline to generate a counts-table of reads remaining after each step
+demo_track_steps <- cbind(demo_good_proper,
+                          sapply(demo_dada_F,
+                                 fetch_numbers),
+                          sapply(demo_dada_R,
+                                 fetch_numbers),
+                          sapply(demo_merged,
+                                 fetch_numbers),
+                          rowSums(demo_nochim))
+colnames(demo_track_steps) <- c("input",
+                                "filtered",
+                                "denoisedF",
+                                "denoisedR",
+                                "merged",
+                                "nochim")
+rownames(demo_track_steps) <- demo_samplenames
+# And save the output to a new file for our records:
+write.table(demo_track_steps,
+            file = "Routput/demo_filtering_steps_track.txt",
+            sep = "\t",
+            quote = FALSE)
+```
+
+## Assign taxonomy to all ASVs ##
+
+We will next determine taxa present in our samples using the Silva database v.132.
+
+
+dada2 helpfully maintains specially formatted databases for 3 of the most popular 16S microbiome-databases: Silva, Greengenes, and RDP (also UNITE for ITS).
+
+We will be using the [dada2 Silva database](https://zenodo.org/record/1172783#.XcClW9VOnb1)
+
+  *You downloaded this file to your Rdata directory previously (Rdata/Silva_db/silva_nr_v132_train_set.fa)*
+
+
+```{r taxonomy}
+demo_taxonomy <- assignTaxonomy(demo_nochim,
+                                "Rdata/Silva_db/silva_nr_v132_train_set.fa",
+                                minBoot = 80,
+                                verbose = TRUE,
+                                multithread = TRUE)
+write.table(demo_taxonomy,file = "Routput/demo_taxaout.txt",
+            sep = "\t",
+            quote = FALSE)
+```
+
+Now we will generate output-files critical for further analyses and data-visualization. These include:
+
+    a table summarizing ASVs by taxa
+    a fasta-file of all ASVs
+    a table of ASV-counts per sample (the OTU-table)
+
+```{r make_final_tables}    
+# Let's create a table by replacing the ASV sequences with ids (ASV_1, ASV_2 etc.) and their corresponding classifications
+demo_taxa_summary <- demo_taxonomy
+row.names(demo_taxa_summary) <- NULL
+head(demo_taxa_summary)
+# Let's make a file listing all the ASVs and their sequences in fasta format
+demo_asv_seqs <- colnames(demo_nochim)
+demo_asv_headers <- vector(dim(demo_nochim)[2],
+                           mode = "character")
+for (i in 1:dim(demo_nochim)[2]) {demo_asv_headers[i] <- paste(">ASV",
+                                                               i,
+                                                               sep = "_")}
+demo_asv.fasta <- c(rbind(demo_asv_headers,
+                          demo_asv_seqs))
+write(demo_asv.fasta,
+      file = "Routput/demo_out_asv.fasta")
+# At this step, we need to make a table of ASV counts for each sample (which is going to be most important for all statistical analyses)
+demo_asv_tab <- t(demo_nochim)
+row.names(demo_asv_tab) <- sub(">",
+                               "",
+                               demo_asv_headers)
+write.table(demo_asv_tab,
+            file = "Routput/demo_asv_counts.tsv",
+            sep = "\t",
+            quote=FALSE,
+            col.names = NA)
+# Finally, let's make a table with the taxonomy of all the ASVs
+demo_asv_taxa <- demo_taxonomy
+row.names(demo_asv_taxa) <- sub(">",
+                                "",
+                                demo_asv_headers)
+write.table(demo_asv_taxa,file = "Routput/demo_asvs_taxonomy.tsv",
+            sep = "\t",
+            quote=FALSE,
+            col.names = NA)
+dim(demo_asv_taxa)
+# We'll also need to make fake sample-bmi data for tomorrow's visualization-exercises (phyloseq)
+bmi <- c('obese',
+         'obese',
+         'lean',
+         'lean')
+demo_fake_sample_data <- data.frame(bmi_group=bmi)
+rownames(demo_fake_sample_data) <- c("demo1",
+                                     "demo2",
+                                     "demo3",
+                                     "demo4")
+write.table(demo_fake_sample_data,
+            file = "Routput/made_up_sample_data.tsv",
+            sep="\t",
+            quote=FALSE)
+```
+
+
+Tomorrow, we'll plot the data we analyzed today.
+
+
+## ** End Day 2 ** ##
+
+**USF Omics Hub Microbiome Workshop Day 3: Visualizing microbiome-data**
+
+# Phyloseq object creation from dada2 data
+
+We'll first be plotting the example-data we analyzed yesterday. We've started a new project for day3 of the workshop, and you'll notice the directory structure is the same as the project we set up yesterday. Your "Rdata"" folder contains the output-data from yesterday we need for plotting.
+
+```{r load_required_packages, include=TRUE, echo=FALSE, warning=FALSE}
+library(microbiome)
+library(phyloseq)
+library(vegan)
+library(metagenomeSeq)
+library(knitr)
+library(ggpubr)
+library(dplyr)
+library(RColorBrewer)
+library(reshape2)
+library(ggplot2)
+library(hrbrthemes)
+library(gcookbook)
+```
+
+First we'll read in and format our data for phyloseq.
+
+```{r phyloseq-create}
+infile_asv_counts <- "Rdata/demo_asv_counts.tsv"
+infile_asv_tax <- "Rdata/demo_asvs_taxonomy.tsv"
+infile_sample_data <- "Rdata/made_up_sample_data.tsv"
+
+df_asv_counts <- read.delim(infile_asv_counts)
+df_asv_tax <- read.delim(infile_asv_tax)
+df_sample_data <- read.delim(infile_sample_data)
+#rownames(df_sample_data) <- df_sample_data[,1]
+#Convert the data to matrix format
+m_asv_counts <- as.matrix(df_asv_counts[2:length(df_asv_counts)])
+rownames(m_asv_counts) <- df_asv_counts[,1]
+
+m_asv_tax <- as.matrix(df_asv_tax[2:length(df_asv_tax)])
+rownames(m_asv_tax) <- df_asv_tax[,1]
+
+##There are 3 possible components to a phyloseq object: otu_table, sample_data, tax_table
+
+pseq <- phyloseq(otu_table(m_asv_counts,
+                           taxa_are_rows = T),
+                 tax_table(m_asv_tax),
+                 sample_data(df_sample_data))
+
+
+
+```
+
+# Inspecting the phyloseq object
+
+```{r phyloseq-inspect}
+
+##Lets look at the data in our phyloseq object
+##The functions used to create the components of a phyloseq object can be used to view the components of a phyloseq object.
+View(otu_table(pseq))
+View(sample_data(pseq))
+View(tax_table(pseq))
+
+```
+
+
+# Get yer alpha and beta diversities here
+
+Step one/figure one in many/most microbiome-analyses is some description of the alpha/beta diversity. What are alpha and beta diversity? *alpha diversity* asks the questions
+
+    1) How many taxa/species, and 
+    2) how different (are taxa/species equally abundant?)
+
+*Beta diversity* asks whether composition varies across environment.
+
+```{r diversity}
+####Diversity####
+##Diversity measures are calculated using the function alpha
+tab<-alpha(pseq,
+           index="all")
+kable(head(tab))
+
+##Return observed richness with given detection thresholds
+tab<-richness(pseq)
+kable(head(tab))
+
+##Returns measures of how unequal the taxa distrubtions are
+tab<-dominance(pseq,
+               index="all")
+kable(head(tab))
+
+##Returns the most abundant taxa in each sample
+dominant(pseq)
+
+##Can specify the taxonimic level you want to know the dominance for
+##Default is the OTU or ASV
+dominant(pseq,
+         level="Phylum")
+
+##Evenness: Measures of how even the "species" are within a sample
+tab<-evenness(pseq,
+              index="all")
+kable(head(tab))
+
+####Alpha diversity plots####
+##Only retain taxa that are present and calculate diversity indices
+ps1<-prune_taxa(taxa_sums(pseq)>0,
+                pseq)
+tab<-diversity(ps1,
+               index="all") #fix deprecation warning
+View(tab)
+##Get the sample meta data
+ps1.meta<-meta(ps1)
+kable(head(ps1.meta))
+##Add the diversity table to the metadata
+ps1.meta$Shannon<-tab$shannon
+ps1.meta$InverseSimpson<-tab$inverse_simpson
+
+View(ps1.meta)
+```
+We have created a table that we can now use for plotting data.
+
+# bmi plots
+
+First we'll compare the differences in Shannon index between BMI groups and create a violin plot of the results.
+
+```{r bmi}
+
+##Create a list of pairwise comparisions
+bmi<-levels(ps1.meta$bmi_group) #get the variables
+bmi.pairs<-combn(bmi,
+                 2,
+                 simplify = F)
+print(head(ps1.meta))
+
+##Create a violin plot
+p1<-ggviolin(ps1.meta,
+             x="bmi_group",
+             y="Shannon",
+             add="boxplot",
+             fill="bmi_group",
+             palette = c("#a6cee3",
+                         "#b2df8a",
+                         "#fdbf6f"))
+print(p1)
+
+dev.off()
+```
+
+
+We'll also save the plot to .pdf in our Rfigs directory for our records:
+```{r error_plots, include=TRUE, echo=FALSE, warning=FALSE}
+
+pdf("Rfigs/bmi.plot.pdf",
+    width = 10,
+    height = 10,
+    pointsize = 8)
+ggviolin(ps1.meta,
+         x="bmi_group",
+         y="Shannon",
+         add="boxplot",
+         fill="bmi_group",
+             palette = c("#a6cee3",
+                         "#b2df8a",
+                         "#fdbf6f"))
+dev.off()
+
+
+```
+
+
+# beta-diversity plots using a larger example dataset
+
+Now that we've gone through most of the analysis-process with our small data-set--let's switch to using a real dataset so we can make more statistically valid comparisons. All the processing to generate the data-tables for visualization has already been done.
+
+```{r dietswap}
+
+####Beta diversity and microbiome divergence####
+
+data(dietswap)
+pseq <- dietswap
+```
+
+Lets look at the new data set we will be using:
+```{r}
+View(otu_table(pseq))
+View(tax_table(pseq))
+View(sample_data(pseq))
+```
+
+Now we will calculate group divergences within the bmi groups. Notes:
+
+    * This measure is sensitive to sample size.
+    * If using NGS data it is recommended to subsample or bootstrap to avoid bias. 
+    
+    This sample data is from a microarray so we don't have to worry about uneven sample sizes in this case.
+    
+```{r divergence by bmi}
+b.obese<-divergence(subset_samples(pseq,
+                                   bmi_group="obese"),
+                    method="bray")
+b.lean<-divergence(subset_samples(pseq,
+                                  bmi_group="lean"),
+                   method="bray")
+boxplot(list(Obese=b.obese,
+             Lean=b.lean))
+```
+The amount of diversity between samples in each group appears to be equal.
+
+
+# alpha diversity in dietswap
+Let's check the alpha diversity on this set.
+
+```{r alpha-dietswap}
+
+##Only retain taxa that are present and calculate diversity indices
+ps1<-prune_taxa(taxa_sums(pseq)>0,
+                pseq)
+tab<-diversity(ps1,
+               index="all") #update diversity function
+View(tab)
+
+##Get the sample meta data
+ps1.meta<-meta(ps1)
+kable(head(ps1.meta))
+
+##Add the diversity table to the metadata
+ps1.meta$Shannon<-tab$shannon
+ps1.meta$InverseSimpson<-tab$inverse_simpson
+View(ps1.meta)
+
+```
+We have created a table that we can use for plotting data.
+
+### Shannon Diversity across groups
+
+```{r shannon-dietswap}
+##Compare the differences in Shannon index between BMI groups
+##Create a list of pairwise comparisions
+bmi<-levels(ps1.meta$bmi_group) #get the variables
+bmi.pairs<-combn(bmi,
+                 2,
+                 simplify = F)
+##Create a violin plot
+p1<-ggviolin(ps1.meta,
+             x="bmi_group",
+             y="Shannon",
+             add="boxplot",
+             fill="bmi_group",
+             palette = c("#a6cee3",
+                         "#b2df8a",
+                         "#fdbf6f"))
+print(p1)
+
+##Add stats (Wilcoxon test)--From the documentation. We will have some warnings because there are not enough replicates, but ignore for now.
+p1<-p1+stat_compare_means(comparisons = bmi.pairs,
+                          method="wilcox.test")
+print(p1)
+```
+
+Diversity seems to be a little higher in the overweight group and not
+significantly different between the lean and obese groups. This is different from what is usually reported.
+
+Can anyone think of an explanation? 
+
+
+### beta diversity over time helper-functions
+
+We will write two functions here to calculate beta diversity directly.
+
+```{r beta-funcs}
+
+##Let's now quantify how a persons microbiome changes over time
+##Quantify beta diversity within subjects over time
+subject_beta_diversity_over_time<-function(phyloseq_obj){
+  betas<-list()
+  df_meta<-meta(phyloseq_obj)
+  ##We're dropping the ED group because the way it is encoded makes it difficult to interpret 
+  df_meta<-df_meta[which(df_meta$group != "ED"),]
+  View(df_meta)
+  groups<-as.character(unique(df_meta$group))
+  for(g in groups){
+    df<-subset(meta(pseq),
+               group==g)
+    beta<-c()
+    
+    for(subj in df$subject){
+      dfs<-subset(df,
+                  subject==subj)
+      #Check that subject has 2 time points
+      if(nrow(dfs)==2){
+        s<-as.character(dfs$sample)
+        #Calculate the beta diversity directly
+        beta[[subj]]<-1-cor(abundances(phyloseq_obj)[,s[[1]]],
+                            abundances(phyloseq_obj)[,s[[2]]],
+                            method="spearman")
+      }
+    }
+    betas[[g]]<-beta
+  }
+  return(betas)
+}
+
+# Now using the function we just created:
+betas<-subject_beta_diversity_over_time(pseq)
+##DI is during diet intervention; HE is baseline
+##The end of dietary intervention
+##Subjects' microbiomes became more similar when they were eating the experimental diets
+
+# plot the results
+boxplot(betas)
+
+##Calculate change in beta diversity (community dismilarity) over time within a single individual
+##Identify the subject with the longest time series (most time points)
+s<-names(which.max(sapply(split(meta(pseq)$timepoint,
+                                meta(pseq)$subject),
+                          function (x){length(unique(x))})))
+##Pick the metadata for this subject and sort the samples by time
+library(dplyr)
+df<-meta(pseq) %>%
+  filter(subject==s) %>%
+  arrange(timepoint)
+
+# create our second function
+calculate_individual_beta_diversity_over_time<-function(df,pseq){
+  ##Calculate how the sample diversity changes relative to baseline
+  beta<-c(0,0) #Baseline similarity
+  #s0<-subset(df,time=0)$sample
+  s0<-df[which(df$timepoint==1),]$sample
+  #print(s0)
+  for(tp in df$timepoint[-1]){
+    #Pick the samples for this subject
+    #If the same time point has more than one sample, pick one at random
+    st<-sample(subset(df,
+                      timepoint==tp)$sample,
+               1)
+    
+    a<-abundances(pseq)
+    #print(a[,s0])
+    b<-1-cor(a[,s0],
+             a[,st],
+             method="spearman")
+    beta<-rbind(beta,
+                c(tp,
+                  b))
+  }
+  colnames(beta)<-c("time",
+                    "beta")
+  beta<-as.data.frame(beta)
+  return(beta)
+}
+
+# Now using our second function:
+df_beta<-calculate_individual_beta_diversity_over_time(df,
+                                                       pseq)
+
+# plot the results
+library(ggplot2)
+p<-ggplot(df_beta,
+          aes(x=time,
+              y=beta)) +
+  geom_point() +
+  geom_line()
+print(p)
+
+
+```
+
+# Microbiome Composition
+
+What are the phyla composing the core microbiome?
+
+```{r composition}
+####Microbiome Composition plots####
+
+##Compute relative level of each taxa
+pseq.rel<-microbiome::transform(pseq,
+                                "compositional")
+##Return a phyloseq object of the core microbiota
+
+pseq.core<-core(pseq.rel,
+                detection = 0,
+                prevalence = 0.5)
+
+pseq.core<-subset_samples(pseq.core,
+                          group="HE" & timepoint.within.group==1)
+pseq.core.phylum<-aggregate_taxa(pseq.core,
+                                 level="Phylum")
+
+
+theme_set(theme_bw(21))
+
+##Remember to save as 10x10
+p <- plot_composition(pseq.core.phylum,
+                      group_by="nationality") +
+  guides(fill = guide_legend(ncol = 1)) +
+  labs(x = "Samples",
+       y = "Relative abundance",
+       title = "Relative abundance data",
+       subtitle = "Subtitle",
+       caption = "Caption text.") +
+  scale_fill_manual(values = default_colors("Phylum"))
+
+
+print(p)
+```
+
+
+# More detailed analysis & plotting of the core microbiome
+
+Core microbiome is calculated with a combination of detection (otu percentage), and prevalence (sample percentence)
+ cutoffs).
+ 
+```{r core}
+ 
+ ####Core microbiome####
+##Return the names of the taxa that excede given prevelence and detection thresholds
+core.taxa.standard<-core_members(pseq.rel,
+                                 detection=0,
+                                 prevalence = 50/100)
+##Return a phyloseq object of the core microbiota
+pseq.core<-core(pseq.rel,
+                detection = 0,
+                prevalence = 0.5)
+##Get taxa names
+core.taxa<-taxa(pseq.core)
+##Sum of abundances of the core members in each sample (Fraction of each sample composed of the
+##core groups)
+core.abundance<-sample_sums(core(pseq.rel,
+                                 detection = 0.01,
+                                 prevalence = 0.95))
+##Core heatmaps
+##Core with compositionals
+prevalences <- seq(.05,
+                   1,
+                   .05)
+detections <- 10^seq(log10(1e-3),
+                     log10(.2),
+                     length = 10)
+
+# Also define gray color palette
+gray <- gray(seq(0,
+                 1,
+                 length=5))
+p <- plot_core(pseq.rel,
+               plot.type = "heatmap",
+               colours = gray,
+               prevalences = prevalences,
+               detections = detections) +
+  xlab("Detection Threshold (Relative Abundance (%))") +
+  theme(axis.text=element_text(size=5),
+        legend.text=element_text(size=10))
+print(p)
+
+##Check abundance of specific taxon
+plot_density(pseq.rel,
+             variable = "Dialister",
+             log10=TRUE) +
+  xlab("log10 Relative Abundance")
+
+```
+
+# ordination - representing data in 2d space, usually followed by some clustering
+
+Ordination is a general ecological framework to recast the high-dimensional OTU data in a 2d plane, usually followed by some clustering. If things go well, samples will cluster relative to some sample/treatment data (eg bmi, or as seen below, nationality)
+
+There are a variety of ordination methods and distances, and all will affect the grouping slightly
+
+For a more extensive example on the differences between examples, [see](https://joey711.github.io/phyloseq/plot_ordination-examples.html), which is the underlying function called by plot_landscape().
+
+```{r ordination: PCoA}
+####Ordination plotting####
+p<-plot_landscape(pseq.core,
+                  method="PCoA",
+                  distance="bray",
+                  col="nationality") +
+  labs(title="PCoA/Bray-Curtis")
+print(p)
+```
+```{r ordination: NMDS}
+####Ordination plotting####
+set.seed(423542)
+p<-plot_landscape(pseq.core,
+                  method="NMDS",
+                  distance="bray",
+                  col="nationality") +
+  labs(title="NMDS/Bray-Curtis")
+print(p)
+```
+
+```{r DESeq2}
+library(DESeq2)
+##Make AFR (African) the reference group
+sample_data(pseq)$nationality<-relevel(sample_data(pseq)$nationality,
+                                       "AFR")
+
+##Subset the data so that you only have the first baseline measurements
+pseq.subset<-subset_samples(pseq,
+                            group=="HE" & timepoint.within.group==1)
+##Convert data into a format that can be used by DESeq
+##Group samples by nationality
+pseq.deseq<-phyloseq_to_deseq2(pseq.subset,
+                               ~nationality)
+##Perform normalization and differential abundance tests
+pseq.deseq<-DESeq(pseq.deseq,
+                  test="Wald",
+                  fitType="parametric")
+##Get and filter the results
+res<-results(pseq.deseq,
+             cooksCutoff = FALSE)
+alpha<-0.01
+res.sig<-res[which(res$padj<=alpha),]
+res.sig <-cbind(as(res.sig,
+                   "data.frame"),
+                as(tax_table(pseq)[rownames(res.sig), ],
+                   "matrix"))
+##Write results to file
+write.csv(res.sig,
+          file="Routput/differential_taxa_abundance.csv")
+```
+## ** End Day 3 part I **
+
+
+## USF Omics Hub Microbiome Workshop Day 3 Part II: Functional analyses 
+
+So far, we've characterized several aspects of community-composition and made comparisons between samples. These descriptive studies are an important first step of microbiome data-analyses; they stop short of delivering meaningful *functional* data however, such as the biological pathways active in these communities, the products of which may be actual drivers of our phenotypes of interest (e.g., obese vs. lean). 
+
+16S data is inherently limited for assessing function, but we can extrapolate some information using phylogenetic tools. In our next session, we'll be using our output differential abundance table ("Routput/differential_taxa_abundance.csv") to extrapolate functional data.
+
+*** For logistical purposes (because the software required for this part is linux-based, not R), we've run PICRUSt2 on our output data already for you. We've provided the commands we used below. We can advise you in more detail should you need to run these steps for your own work.***
+# Introduction for analyzing Picrust2 in a statistical framework
+
+Basics of this are sort of light in the official Aldex tutorial, which frames in the more general RNAseq/whatever. Which, according to their philosphy, should work the same way. 
+
+Basically, the Aldex way says that everything counts should be scaled relative (even rnaseq), and then you can use some abundance methods they developed to do comparative testing. 
+
+The fast and easy ways are essentially t-tests for 2 factor designs, etc.
+
+The full on, fully modeled way is using a glm, which is apparently quite slow, but lets the variable tested be multivariate. It tests in a one-against-all fashion if I remember correctly (link to docs)
+
+The code to confirm the logic of hooking up the picrust2 outputs (and which) to the aldex come from
+
+https://github.com/gavinmdouglas/picrust2_manuscript/blob/master/scripts/analyses/hmp2/hmp2_aldex2_disease_state_and_enriched.R
+
+take the normalized pathway abundance file (seqtab_norm.tsv?)
+
+
+
+to run:
+
+```{bash,eval=FALSE}
+source activate picrust2
+# JO: most people will need to use "conda activate picrust2"
+
+#the default output uses less memory, but outputs in a long format
+#we would have to spread the data to get it back to wide (like an otu table)
+#time picrust2_pipeline.py -s seqs.fna -i table.biom -o picrust_ex -p 10 --per_sequence_contrib --stratified --coverage
+
+#add --wide-table so you don't have to spread from the data
+time picrust2_pipeline.py -s seqs.fna -i table.biom -o picrust_ex -p 10 --per_sequence_contrib --stratified --coverage --wide_table
+```
+Note! the stratified tables, which are what we want, will increase the run time and outputfile size considerably (since they are the full ASV matrices)
+
+
+https://github.com/chrismitbiz/metagenomepredictionanalysis/blob/master/16smetagenomepredanalysis.Rmd
+
+
+see here to get to the RDS used later on by the picrust2 MS
+https://github.com/gavinmdouglas/picrust2_manuscript/blob/4f6eaf92333d2f4e3982501f41eaa2f900f91d28/scripts/analyses/hmp2/hmp2_prep_input.R
+
+also:
+
+https://rpubs.com/chrisLaTrobe/Picrust_PCA_KEGG
+
+though the aldex code results are elided
+
+# preprocessing data for aldex
+
+The main things to do are to drop out the pathway/sequence columns, merge them into rownames. You only need to do this with the stratified data (which splits out the effect of pathway X otu).
+
+Unstratified looks at a whole-pathway level, so is more summarised.
+
+General note, I prefer using readr to read in data, but we need to convert all the data from tibbles to dataframes to properly use the rownames. They have a habit of getting dropped if the tibble is modified.
+
+```{r preproc}
+library(ALDEx2)
+library(readr)
+library(dplyr)
+#wide file?
+#this is taken from the prep_input code
+df=read_tsv("../Rdata/picrust_ex/pathways_out/path_abun_strat.tsv")
+dfs=as.data.frame(df)
+rownames(dfs)=paste(df$pathway,df$sequence,sep="|")
+dfs=dfs[,-which(colnames(dfs) %in% c("pathway","sequence"))]
+dfout=as.data.frame(df)
+
+dfus=read_tsv("../Rdata/picrust_ex/pathways_out/path_abun_unstrat.tsv")
+dfus=as.data.frame(dfus)
+rownames(dfus)=dfus$pathway
+dfus=dfus[,-which(colnames(dfus)=="pathway")]
+
+#nothing in the pathway, look in the kegg?
+
+dfk=read_tsv("../Rdata/picrust_ex/KO_metagenome_out/pred_metagenome_unstrat.tsv")
+dfk=as.data.frame(dfk)
+rownames(dfk)=dfk$`function`
+dfk=dfk[,-which(colnames(dfk)=="function")]
+
+
+rownames(dfout)=paste(dfout$pathway,dfout$sequence,sep="|")
+dfout=dfout[,-which(colnames(dfout) %in% c("pathway","sequence"))]
+df_tmp= df[, -which(colnames(df) == "sequence")]
+df_abun=aggregate(.~pathway,data=df_tmp,FUN=sum)
+rownames(df_abun)=df_abun$pathway
+df_abun=df_abun[,-which(colnames(df_abun)=="pathway")]
+#convert to relative abundance
+df_rabun=data.frame(sweep(df_abun,2,colSums(df_abun),"/"),check.names=F)
+# asin transformation
+asinT=function(x) asin(sqrt(x))
+df_rabun2=df_rabun %>% mutate_all(asinT)
+
+#finally, round them so they
+df_rrabun=round(df_rabun)
+
+
+
+
+```
+
+# exploratory analyses with phyloseq/pca
+
+Before we go into the real-deal modeling, lets quickly check if the kegg/pathways cluster by strain or facility. We get to see the null results in real time. 
+  ## JO: more explanation about why this is the first thing to check
+
+The picrust2 notes that the example data is "greatly simplified" for the picrust2 demo, presumably mainly on the amount of metadata.
+
+The preprint for the paper states what we will shortly show. https://peerj.com/articles/5494/
+
+A lot of this code is directly from
+https://rpubs.com/chrisLaTrobe/Picrust_PCA_KEGG
+
+Thanks Chris LaTrobe!
+
+```{r pca}
+library(phyloseq)
+library(microbiome)
+
+mdata=read_tsv("../Rdata/metadata.tsv")
+kotu=otu_table(dfk,taxa_are_rows=TRUE)
+md=as.data.frame(mdata)
+rownames(md)=mdata$SampleID
+md=md[,-which(colnames(md)=="SampleID")]
+md=sample_data(md)
+kegg=phyloseq(kotu,md)
+pwo=otu_table(dfout,taxa_are_rows=TRUE)
+pw=phyloseq(pwo,md)
+
+#kegg is the kegg table
+#pw is the pathway table (much higher level)
+
+
+pw_clr=microbiome::transform(pw,"clr")
+kegg_clr=microbiome::transform(kegg,"clr")
+
+
+```
+
+# basic ordination of kegg/pathway data
+
+Ordination / dimension reduction is basically the same as when done with regular phyloseq and "regular" OTU tables. Only thing different is that you aren't working with a taxa table.
+
+```{r ord}
+#rda is one of many ordination methods
+ord_pw=phyloseq::ordinate(pw_clr,"RDA")
+ord_kegg=phyloseq::ordinate(kegg_clr,"RDA")
+
+#get the top eigenvalues of the first few PC axes
+head(ord_pw$CA$eig)
+#transform to percent
+sapply(ord_pw$CA$eig[1:8], function(x) x / sum(ord_pw$CA$eig))
+sapply(ord_kegg$CA$eig[1:8], function(x) x / sum(ord_kegg$CA$eig))
+#ok, so most variation is in the first 2 axes for pathway
+# 3-4 axes for kegg
+
+p=plot_ordination(pw,ord_pw,type="samples",color="Facility",shape="Genotype")
+p=p+geom_polygon(aes(fill=Genotype))
+#much larger separation by Facility, genotype seems to overlap
+
+
+
+
+```
+
+# fancy-pants statistical modeling with Aldex2
+
+Aldex2 provides a way to model compositional (count) data, using a Welch test or Kruskal-Wallis for simple comparisons (two types), and a full blown general linear model *(glm)* for multiple variables at the same time (though I ran into issues getting the effect-size and plotting). 
+
+The other key thing to note is that picrust2 outputs fractional counts, so some rounding needs to be done or most of these programs will break.
+
+If you have continuous metadata, you can use the aldex.corr function. For categorical data, use aldex
+
+The aldex function performs 3 steps:
+
+    1. some MC to get a sense of the Dirichlet distribution and then convert using a center-log transform.
+    2. aldex.ttest (or aldex.kw, aldex.glm) to test for differences.
+    3. aldex.effect to get effect sizes for the rows
+
+In the first plots, you'll see nothing is significant (no red dots).
+
+When we redo the plots by Facility, lots of things are significant. Looking back at the paper, there's an inherent Facility/Strain batch-effect that isn't possible to unravel (all samples of a strain (KO and WT) were sequenced at the same facility).
+
+A reminder that its probably worth it to talk to someone about your design before you actually sequence/do the experiment.
+
+```{r aldex}
+
+
+conds=mdata$Genotype
+#kegg
+x.kf=aldex(round(dfk),conds,effects=T,denom="all")
+#unstratified pathway
+x.pwu=aldex(round(dfus),conds,effects=TRUE,denom="all")
+#stratified pathway
+x.pws=aldex(round(dfs),conds,effects=TRUE)
+#x.all=aldex(round(dfs),conds,effects=TRUE)
+#x.all <- aldex(selex.sub,conds,mc.samples=16,test="t",effect=TRUE,include.samples.summary=FALSE,demon="all",verbose=FALSE)
+
+par(mfrow=(c(3,2)))
+aldex.plot(x.kf,type="MA",test="welch",xlab="Log-ratio abundance",
+           ylab="Difference")
+aldex.plot(x.kf,type="MW",test="welch",xlab="Dispersion",
+           ylab="Difference")
+
+aldex.plot(x.pwu,type="MA",test="welch",xlab="Log-ratio abundance",
+           ylab="Difference")
+aldex.plot(x.pwu,type="MW",test="welch",xlab="Dispersion",
+           ylab="Difference")
+
+
+aldex.plot(x.pwu,type="MA",test="welch",xlab="Log-ratio abundance",
+           ylab="Difference")
+aldex.plot(x.pwu,type="MW",test="welch",xlab="Dispersion",
+           ylab="Difference")
+#nothing is significant
+
+#redo with conds=facility
+conds=mdata$Facility
+x.kf=aldex(round(dfk),conds,effects=T)
+x.pwu=aldex(round(dfus),conds,effects=T)
+x.pws=aldex(round(dfs),conds,effects=T)
+
+par(mfrow=(c(3,2)))
+aldex.plot(x.kf,type="MA",test="welch",xlab="Log-ratio abundance",
+           ylab="Difference")
+aldex.plot(x.kf,type="MW",test="welch",xlab="Dispersion",
+           ylab="Difference")
+
+aldex.plot(x.pwu,type="MA",test="welch",xlab="Log-ratio abundance",
+           ylab="Difference")
+aldex.plot(x.pwu,type="MW",test="welch",xlab="Dispersion",
+           ylab="Difference")
+
+
+aldex.plot(x.pwu,type="MA",test="welch",xlab="Log-ratio abundance",
+           ylab="Difference")
+aldex.plot(x.pwu,type="MW",test="welch",xlab="Dispersion",
+           ylab="Difference")
+
+
+
+
+```
+
+
+# glm model for multivariate (not quite working)
+
+Here is the general framework for doing analyses with a glm. Note that it takes much longer than the other tests, (<1 minute for 2 variable vs 10+ minutes for glm).
+
+Also, the output doesn't properly work with the aldex.plot and aldex.effect
+
+To build the markdown I prevented the following chunk from running
+
+digging in a little more, could probably do the plotting etc using the data from summary(x) (the result from the aldex.clr call)
+
+Left column has standard MA-style plots, right column is an MW plot, which is the difference between to variance within
+
+```{r glm,eval=FALSE}
+dm=model.matrix(~Genotype+Facility,mdata)
+#can do complex models with multiple terms with glm
+#it is SLOWWWWW
+#for this smallish dataset, it took 10+ minutes
+x=aldex.clr(round(dfk),dm,denom="all")
+
+NOT RUN, aldex.glm
+#x.glm=aldex.glm(x,dm)
+#x.eff=aldex.effect(x)
+
+#par(mfrow=(c(1,2)))
+#plot(x.glm[,"model.GenotypeWT Pr(>|t|).BH"], x.all$we.eBH, log="xy",xlab="glm model Genotype", ylab="Welch's t-test")
+#plot(glm.test[,"model.FacilityPaloAlto Pr(>|t|).BH"], x.all$we.eBH, log="xy",xlab="glm model Facility", ylab="Welch's t-test")
+```
+
+
+
