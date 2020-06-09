@@ -11,7 +11,7 @@ if (length(setdiff(packages, rownames(installed.packages()))) > 0) {
 # install our primary analysis-packages from bioconductor if they aren't already installed
 bioconductor.packages <- c("dada2", "microbiome", "phyloseq")
 if (length(setdiff(bioconductor.packages, rownames(installed.packages()))) > 0){
-  BiocManager::install(c("dada2", "microbiome", "phyloseq"),
+  BiocManager::install(c("dada2", "microbiome", "phyloseq","metagenomeSeq"),
                      ask = FALSE,
                      quiet = TRUE,
                      verbose = FALSE)
