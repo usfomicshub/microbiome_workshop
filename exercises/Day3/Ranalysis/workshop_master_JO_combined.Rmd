@@ -2,14 +2,24 @@
 title: "USF Omics Hub Microbiome Data-Analysis Workshop: hands-on exercises"
 authors: "J. Oberstaller, A. Sarkar, J. Gibbons, T.E. Keller, S. Rakesh, C. Wang"
 guinea-pigs: "J. Donglasan, S. Jahangiri, J. Dahrendorff"
-date: "6/03/2020"
-output: html_document
+date: "6/09/2020"
+output: pdf
 ---
-### First step will be to create a new project in RStudio, then open this markdown there. We'll include a walkthrough. ###
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo=TRUE)
+### First we created a new Rproject in the "Day3" directory using RStudio, which automatically set our home directory to Day3. Now we are ready to run some code!###
 
+```{r setup, include=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo=TRUE)
+source("../Rsource/Hub_microbiome_workshop_source.R")
 ```
+
+```{r makedir, include=FALSE}
+# run the function to make the empty directories we need for our output
+makeRdirs()
+
+# remove the function from the environment because we don't need it anymore
+#rm(makeRdirs)
+```
+
 # USF Omics Hub Microbiome Workshop Day 2: Generating ASV tables from microbiome-sample sequencing data #
 
 # Pipeline-overview #

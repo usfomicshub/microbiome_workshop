@@ -2,3 +2,7 @@
 .Rproj.user
 .Rhistory
 R.Rproj
+exercises/Day*/*.Rproj
+.RData
+exercises/Day*/Routput
+exercises/Day*/Rfigs
