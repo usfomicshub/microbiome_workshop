@@ -1,6 +1,6 @@
 # Microbiome Data-Analysis Workshop Day One Presentations
 
-## You can follow Day One course presentations in order: 
+## You can follow the presentations in order of the agenda :
 
 1. **Introduction: Workshop overview & USF Omics Hub**	Dr. Jenna Oberstaller 
 
