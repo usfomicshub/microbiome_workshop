@@ -28,6 +28,8 @@
 
 7. **Microbiome data-analysis visualization: An overview**	Dr. Justin Gibbons
 
+   `jg_microbiome_plots_march2020.pdf`
+   
 8. **Functional profiling with Picrust2** Dr. Thomas Keller
 
    `Functional_profiling_with_Picrust2_workshopTEK_June2020.pdf`
