@@ -3,7 +3,7 @@
 
 1. **Introduction to R and Plotting Data** Dr. Charley Wang
 
-
+   `R Tutorial.pdf`
 
 2. **Taxonomic Analysis** Dr. Anujit Sarkar
 
