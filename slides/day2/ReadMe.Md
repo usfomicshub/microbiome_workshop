@@ -1,5 +1,5 @@
 ## Microbiome Workshop Day 2 Presentation Slides 
-###In order of the agenda : 
+### In order of the agenda : 
 
 1. **Introduction to R and Plotting Data** Dr. Charley Wang
 
