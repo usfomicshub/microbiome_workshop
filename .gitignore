@@ -2,7 +2,10 @@
 .Rproj.user
 .Rhistory
 R.Rproj
-exercises/Day*/*.Rproj
+exercises/day*/*.Rproj
 .RData
-exercises/Day*/Routput
-exercises/Day*/Rfigs
+exercises/day*/Routput
+exercises/day*/Rfigs
+exercises/day2/Rdata
+exercises/day*/Ranalysis/*.log
+exercises/day*/Ranalysis/*.tex
