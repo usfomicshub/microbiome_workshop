@@ -8,3 +8,5 @@
    `Functional_profiling_with_Picrust2_workshopTEK_June2020.pdf`
    
 3. **Taxonomic Analysis: Machine learning** Dr. Thomas Keller
+
+   `Machine learning for the microbiome_tek_jun2020.pdf`
