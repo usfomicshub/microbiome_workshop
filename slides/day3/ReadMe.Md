@@ -3,6 +3,8 @@
 
 1. **Taxonomic Analysis: Visualization Part I** Dr. Justin Gibbons
 
+   `jg_microbiome_plots_march2020.pdf`
+
 2. **Taxonomic Analysis: Visualization Part II** Dr. Thomas Keller 
 
    `Functional_profiling_with_Picrust2_workshopTEK_June2020.pdf`
