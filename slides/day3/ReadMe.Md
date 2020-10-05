@@ -1,4 +1,4 @@
-## MMicrobiome Workshop Day 2 Presentation Slides
+## Microbiome Workshop Day 2 Presentation Slides
 ### In order of the agenda: 
 
 1. **Taxonomic Analysis: Visualization Part I** Dr. Justin Gibbons
