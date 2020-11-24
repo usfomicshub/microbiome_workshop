@@ -37,7 +37,8 @@ bioconductor.packages <- c("microbiome",
                            "phyloseq",
                            "SIAMCAT",
                            "metagenomeSeq",
-                           "dada2")
+                           "dada2",
+                           "DESeq2")
 if (length(setdiff(bioconductor.packages, rownames(installed.packages()))) > 0){
   BiocManager::install(c("microbiome",
                          "phyloseq",
