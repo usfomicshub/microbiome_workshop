@@ -1,0 +1,109 @@
+---
+title: "ASV_initial_analysis"
+author: "Chengqi(Charley) Wang"
+date: "11/29/2020"
+output: html_document
+---
+### Data loading
+###### Here, we are going to load the ASV table with the row indicating the sampleID. The column is the consensus sequence. The file name is asv.table.txt
+```{r}
+## Loading the ASV table
+seqtab.nochim <- read.table('~/Documents/work/paper_write/genome_training/R_for_microbiome/micro_biome_training16S/asv.table.txt', header = T, sep = '\t')
+
+## Loading the file providing the sequence (column of seqtab.nochim) corresponding species for each column of ASV table
+taxa <- read.table('~/Documents/work/paper_write/genome_training/R_for_microbiome/micro_biome_training16S/taxa_for_asv.txt', header = T, sep = '\t')
+```
+<br/><br/>
+  
+### Sparsity detection and accuracy evaluation
+```{r}
+## Checking how sparse the ASV is
+sum(apply(seqtab.nochim, 2, function(x){x > 0}))/(nrow(seqtab.nochim) * ncol(seqtab.nochim))
+
+
+## Checking the distribution of reads counts
+hist(log2(seqtab.nochim[seqtab.nochim > 0]), breaks = 100,
+     col = 'cornflowerblue', las = 1, main = 'Distribution of reads counts')
+quantile(seqtab.nochim[seqtab.nochim > 0])
+quantile(seqtab.nochim[seqtab.nochim > 0], 0.05)
+abline(v = log2(5),lty = 2)
+
+## Barplot investigating the number of consensus sequence detected
+barplot(apply(seqtab.nochim, 1, function(x){length(which( x > 4))}),
+        las = 2, ylab = 'Number of consensus sequence')
+abline (h = 20, lty = 2)
+
+## Accuracy evaluation by using mock sequence
+## Loading the reference seqence for Mock sample
+mock_seq <- read.table('mock.sequence.tab.txt', header = T)
+seqtab.nochim_mock <- seqtab.nochim[20,]
+seqtab.nochim_seq  <- names(seqtab.nochim_mock)[which(seqtab.nochim_mock > 4)]
+## Printing out the number of consensus sequence in Mock sample match to reference sequences
+sum( sapply(seqtab.nochim_seq, function(s){any( grep(s, mock_seq$sequence) )} ) )
+```
+<br/><br/>
+
+
+#### Shannon and Simpson diversity 
+```{r}
+##Matrix generation for sample information 
+daysAfterWeaning <- sapply(strsplit(rownames(seqtab.nochim)[1:19], 'D'), function(x){
+                           x[2]   
+                    })
+samdf <- data.frame(id = rownames(seqtab.nochim)[1:19],
+                    daysAfterWeaning = as.numeric(daysAfterWeaning))
+samdf$col <- 'red'
+samdf$col[samdf$daysAfterWeaning > 100] <- 'navy'
+
+##Function for Shannon diversity 
+#input should be samples x taxonomy
+shannonDiversity <- function(df) 
+{
+     p <- t( apply(df, 1, function(x){x/sum(x)}) )
+     H <- apply(p , 1, function(x){x <- x[x > 0]; -sum( log(x) * x )})
+     return(H)
+}
+
+##Function for Simpson diversity
+SimpsonDiversity <- function(df) 
+{
+     p <- t( apply(df, 1, function(x){x/sum(x)}) )
+     H <- apply(p , 1, function(x){x <- x[x > 0];1-sum( (x ^ 2))})
+     return(H)
+}
+shD <- shannonDiversity(seqtab.nochim[1:19, ])
+siD <- SimpsonDiversity(seqtab.nochim[1:19, ])
+par(mfrow = c(1,2))
+plot(samdf$daysAfterWeaning,shD, col = samdf$col, pch = 19 ,las = 1, 
+     xlab = 'Days', ylab = 'Shannon Diversity')
+plot(samdf$daysAfterWeaning,siD, col = samdf$col, pch = 19 ,las = 1, 
+     xlab = 'Days', ylab = 'Simpson Diversity')
+
+```
+  
+#### Projecting the samples on 2-D plot by using PCA
+```{r}
+## Transform data to proportions as appropriate for Bray-Curtis distance
+ps.prop <- t(apply(seqtab.nochim,1,function(x){x/sum(x)})) 
+BC_dis  <- function(prop) 
+{
+       m <- matrix(, nrow(prop), nrow(prop))
+       for(i in 1:nrow(prop)) 
+       {
+           for(j in 1:nrow(prop)) 
+           {
+                 m[i,j] <- 1 - sum( apply(prop[c(i,j),],2,min))
+           }  
+       } 
+       return(m)
+}
+
+## Bray-Curtis distance calculation
+ps.BC_dis<- BC_dis (ps.prop[1:19, ])
+ps.PCA   <- prcomp(ps.BC_dis,scale=F )
+plot(ps.PCA$rotation[,1],
+     ps.PCA$rotation[,2], 
+     bg = samdf$col,pch = 21,cex = 2,
+     las = 1,xlab = 'PCA_direction1',
+     ylab = 'PCA_direction2')
+```
