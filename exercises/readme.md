@@ -9,7 +9,7 @@ Current Box links:
 
 Day 2: https://usf.app.box.com/folder/126106799049?s=x5svt1ac4wqhepcly6p0ximqn6en3xfs
 
-Day 3: https://usf.app.box.com/folder/126106799049
+Day 3: https://usf.app.box.com/folder/127194363276?s=yjla05zyo9bompwtl4hrxoj91jwsi1m6
 
 **NOTE**: "Routput" and "Rfigs" subfolders are not included in these folders but will be empty folders included in the Box folder download. 
 
