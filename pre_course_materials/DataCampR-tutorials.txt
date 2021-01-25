@@ -1,7 +1,0 @@
-1. Basic Programming Skills in R:
-
-https://www.datacamp.com/community/tutorials/basic-programming-skills-r
-
-2. Utilities in R
-
-https://www.datacamp.com/community/tutorials/utilities-in-r
