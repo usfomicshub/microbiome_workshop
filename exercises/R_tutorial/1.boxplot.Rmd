@@ -1,0 +1,86 @@
+---
+title: "boxplot"
+author: "Chengqi(Charley) Wang"
+date: "5/22/2020"
+output: html_document
+---
+
+<br/><br/>
+
+#### Generating two sets of Poisson samples
+```{r}
+set.seed(100)
+data1 <- rpois(1000, lambda = 2)
+set.seed(100)
+data2 <- rpois(1000, lambda = 10)
+```
+<br/>
+
+#### Combining it as a data frame
+```{r}
+df <- data.frame(seq1 = data1, seq2 = data2)
+rownames(df) <- paste(rep('s',1000), 1:1000,sep = '_')
+head(df)
+```
+<br/>
+
+#### Generating the boxplot
+```{r}
+boxplot(df$seq1, df$seq2)
+```
+<br/>
+
+#### Adding the lable for X and Y axis<br/>
+#### Change the direction of coordiante at Y-axis 
+```{r}
+boxplot(df$seq1, df$seq2, ylab = 'Reads_count', las = 1,
+        names = c('s1', 's2'))
+```
+<br/>
+
+#### Adding the color for each box, removing the border of the box
+```{r}
+boxplot(df$seq1, df$seq2, ylab = 'Reads_count', las = 1,
+        names = c('s1', 's2'), col = c('red', 'navy'), ##adding the color
+        boxlty = c(0,0),## removing the border of box
+        medcol = c('white', 'white')
+        )
+```
+<br/><br/>
+
+## using ggplot2 for boxplot
+```{r}
+library(ggplot2)   #loding  the package 
+data(airquality)   #loading the available data
+head(airquality)
+aq <- airquality[ !is.na(airquality$Ozone) ,] #removing the missing data for Ozone variable
+##draw the boxplot from ggplot2
+aq$Month <- as.factor(aq$Month)
+p10 <- ggplot(aq, aes(x = Month, y = Ozone)) + 
+       geom_boxplot()
+p10
+
+##adding the color for each box
+p10 <- ggplot(aq, aes(x = Month, y = Ozone)) + 
+       geom_boxplot(fill = c('red','gold', 'navy', 'forestgreen', 'purple')) +
+       scale_y_continuous(name = 'Mean ozone in parts per billion', ## add the y asis name
+                          breaks = seq(0,175,25), # the points at which tick-marks are to be drawn
+                          limits = c(0,175))    #the minmum and maxmum of y-axis
+p10
+
+```
+<br/>
+
+## using traditional plot
+```{r}
+boxplot(aq$Ozone[aq$Month == 5],
+        aq$Ozone[aq$Month == 6],
+        aq$Ozone[aq$Month == 7],
+        aq$Ozone[aq$Month == 8],
+        aq$Ozone[aq$Month == 9],
+        col = c('red','gold', 'navy', 'forestgreen', 'purple'),
+        medcol = rep('white', 5),whisklty = 1,
+        boxlty = rep(0,5), names = c('May', 'Jun', 'July', 'Aug', 'Sep'),
+        ylab   = 'Mean ozone in parts per billion',
+        las = 1)
+```
