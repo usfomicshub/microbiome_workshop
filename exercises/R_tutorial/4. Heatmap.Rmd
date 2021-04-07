@@ -1,0 +1,88 @@
+---
+title: "Heatmap"
+author: "Chengqi(Charley) Wang"
+date: "5/24/2020"
+output: html_document
+---
+
+<br/><br/>
+
+### Loading the available dataset
+```{r}
+data(mtcars)
+x  <- as.matrix(mtcars)
+heatmap(x)
+```
+<br/>
+
+### Enhanced heatmap in gplot
+```{r}
+library(gplots)
+heatmap.2(x, Colv=FALSE, dendrogram="row", 
+          trace = 'none', 
+          denscol = 'navy', 
+          adjCol = c(1,2),# 2-element vector giving the (left-right, top-bottom) 
+          #justification of row/column labels
+          
+          offsetRow = 1  #Number of character-width spaces to place between 
+          #row/column labels and the edge of the plotting region.
+          )
+
+## change the direction of column lable
+heatmap.2(x, srtRow=0, srtCol=90, 
+          offsetRow=0, offsetCol=0, col=bluered)
+
+## scale is very very important!!
+heatmap.2(x, srtRow=0, srtCol=90, 
+          offsetRow=0, offsetCol=0, 
+          col=bluered, scale = 'col'#normalized by column
+          )
+
+```
+<br/>
+
+### Drawing heatmap in ggplot
+```{r}
+#The package reshape is required to melt the correlation matrix :
+library(reshape2)
+corCar          <- cor(t(mtcars))
+melted_corMTCAR <- melt(corCar) # changed melt to pair correlation matrix
+head(melted_corMTCAR)
+
+# heatmap for correlation  
+library(ggplot2)
+ggplot(data = melted_corMTCAR, aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile()  
+
+# Get lower triangle of the correlation matrix
+get_lower_tri<-function(cormat){
+  cormat[upper.tri(cormat)] <- NA
+  return(cormat)
+}
+# Get upper triangle of the correlation matrix
+get_upper_tri <- function(cormat){
+  cormat[lower.tri(cormat)]<- NA
+  return(cormat)
+}
+
+# use extract upper.tri
+upper_tri <- get_upper_tri(corCar)
+head(upper_tri)
+
+
+# Melt the correlation matrix
+melted_cormat <- melt(upper_tri, na.rm = TRUE)
+
+# Heatmap
+ggplot(data = melted_cormat, aes(Var2, Var1, fill = value))+
+  geom_tile(color = "white")+
+  scale_fill_gradient2(low = "navy", high = "red", mid = "white", 
+                       midpoint = 0.925, limit = c(0.85,1), space = "Lab", 
+                       name="Pearson\nCorrelation") +
+  theme_minimal()+ 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 8, hjust = 1))+
+  coord_fixed()
+
+
+```
