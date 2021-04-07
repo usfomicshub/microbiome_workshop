@@ -1,0 +1,64 @@
+---
+title: "Hist plot & Density plot"
+author: "Chengqi(Charley) Wang"
+date: "5/22/2020"
+output: html_document
+---
+
+<br/><br/>
+#### Generating two sets of Poisson samples
+```{r}
+set.seed(100)
+data1 <- rpois(1000, lambda = 2)
+set.seed(100)
+data2 <- rpois(1000, lambda = 10)
+```
+<br/>
+
+#### Generating the histplot
+```{r}
+  hist(data1, freq = T)
+  #comparing with freq = F, watch out Y-axis
+  hist(data1, freq = F)
+  #giving thiner bar, adding yellow color
+  hist(data1, freq = F, breaks = 100,
+       col = rgb(246,189,96, max = 255, alpha = 200))
+  #Drawing histplot for data2 with red color
+  hist(data2, freq = F, breaks = 100,
+       col = rgb(238,129,127, max = 255, alpha = 200))
+```
+<br/>
+
+#### Merging two hist plot together
+```{r}
+   #setting the range of X-axis and Y-axis so that the scale contains all number of data1 and data2
+    hist(data1, freq = F, breaks = 10,
+       col = rgb(246,189,96, max = 255),
+       xlim = c(0,20), ylim = c(0,0.5),
+       xlab = 'read counts', main = '')
+   # adding data2 with transparency color
+   hist(data2, freq = F, breaks = seq(min(data2), max(data2),1),
+       col = rgb(238,129,127, max = 255, alpha = 100),
+       add = T)
+   # adding density line to data2
+   lines(density(data2, n = (max(data2) - min(data2))/1))
+```
+<br/>
+## GGplot for hist plot
+```{r}
+##generating the data frame
+df <- data.frame( counts = c(data1, data2),
+                  label  = c(rep('df1', length(data1)),
+                             rep('df2', length(data2))))
+head(df);
+tail(df)
+
+library(ggplot2)
+ggplot(df,aes(x=counts)) + 
+    geom_histogram(data=subset(df,label == 'df1'),
+                   fill = "red", alpha = 0.2) +
+    geom_histogram(data=subset(df,label == 'df2'),
+                   fill = "blue", alpha = 0.2)
+```
+
+
