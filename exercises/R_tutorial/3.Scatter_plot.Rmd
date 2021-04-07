@@ -1,0 +1,62 @@
+---
+title: "Scatter Plot"
+author: "Chengqi(Charley) Wang"
+date: "5/22/2020"
+output: html_document
+---
+  
+<br/><br/>
+#### Generating two sets of Poisson samples
+```{r}
+set.seed(100)
+data1 <- c(rpois(100, lambda = 2), rpois(100, lambda = 6))
+set.seed(100)
+data2 <- c(rpois(100, lambda = 10), rpois(100, lambda = 26))
+# generating the data frame 
+df    <- data.frame(case1 = data1,
+                    case2 = data2)
+# normalizing the data
+dfNor    <- apply(df, 2, function(x){x/sum(x) * 1000})
+head(dfNor)
+```
+<br/>
+### Drawing the scatter plot
+```{r}
+plot(dfNor[,1], dfNor[,2])
+#Adding the color, changing the direction of coordination
+plot(dfNor[,1], dfNor[,2], las = 1,
+     col = 'red')
+#Changing the point type, size 
+plot(dfNor[,1], dfNor[,2], las = 1,
+     col = 'red', pch = 19, cex = 1.5)
+#Or changing another type, adding the label
+plot(dfNor[,1], dfNor[,2], las = 1,
+     bg = 'red', pch = 21, cex = 1.5,
+     xlab = 'counts_1', ylab = 'counts_2',
+     cex.axis = 1.5, # increasing the size of the coordinate
+     cex.lab = 1.5   # increasing the size of the lable
+     )
+#Checking correlation and and adding the line
+correlation <- cor(dfNor[,1], dfNor[,2])
+correlation
+abline(lm(dfNor[,2] ~ dfNor[,1]))
+```
+<br/>
+### Drawing the scatter plot by ggplot
+```{r}
+# # changing the data format
+# df_forGG <- data.frame(count = c(data1, data2),
+#                        label = c(rep('data1', length(data1)),
+#                                  rep('data2', length(data2))))
+library(ggplot2)
+ggplot( data.frame(dfNor) ,
+       aes(x = case1, y = case2)) +
+  geom_point()
+# change the point size and shape
+ggplot(data.frame( dfNor ), aes(x = case1, y = case2)) +
+  geom_point(size = 2, shape = 23)
+#adding the regression line
+ggplot(data.frame( dfNor ), aes(x = case1, y = case2)) +
+  geom_point(size = 2, shape = 23) + 
+  geom_smooth(method = lm, se = F)
+```
